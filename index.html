@@ -1,0 +1,1210 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="書庫">
+<meta name="theme-color" content="#f5f0e8">
+<title>書庫</title>
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icon-192.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Serif+TC:wght@300;400;600&family=Cormorant+Garamond:ital,wght@0,300;0,400;0,600;1,300&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #f5f0e8;
+    --bg2: #ede8df;
+    --surface: #faf7f2;
+    --border: #ddd6c8;
+    --text: #2c2416;
+    --text2: #7a6e5f;
+    --text3: #b0a898;
+    --accent: #8b5e3c;
+    --accent2: #c4956a;
+    --reading: #4a7c59;
+    --toread: #6b7fa3;
+    --finished: #8b5e3c;
+    --safe-top: env(safe-area-inset-top, 0px);
+    --safe-bottom: env(safe-area-inset-bottom, 0px);
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+
+  body {
+    font-family: 'Noto Serif TC', serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100dvh;
+    overflow-x: hidden;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* ── TOP BAR ── */
+  .topbar {
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    background: var(--bg);
+    padding: calc(var(--safe-top) + 12px) 20px 0;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .topbar-inner {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding-bottom: 12px;
+  }
+
+  .app-title {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 26px;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    color: var(--text);
+  }
+
+  .app-title span {
+    font-style: italic;
+    color: var(--accent);
+  }
+
+  .add-btn {
+    width: 38px; height: 38px;
+    border-radius: 50%;
+    background: var(--accent);
+    border: none;
+    color: white;
+    font-size: 22px;
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer;
+    box-shadow: 0 2px 8px rgba(139,94,60,0.3);
+    transition: transform 0.15s, box-shadow 0.15s;
+  }
+  .add-btn:active { transform: scale(0.93); box-shadow: 0 1px 4px rgba(139,94,60,0.2); }
+
+  /* ── TABS ── */
+  .tabs {
+    display: flex;
+    gap: 6px;
+    padding: 0 0 12px;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+  .tabs::-webkit-scrollbar { display: none; }
+
+  .tab {
+    flex-shrink: 0;
+    padding: 6px 14px;
+    border-radius: 20px;
+    border: 1px solid var(--border);
+    background: transparent;
+    color: var(--text2);
+    font-family: 'Noto Serif TC', serif;
+    font-size: 13px;
+    cursor: pointer;
+    transition: all 0.18s;
+  }
+  .tab.active {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: white;
+  }
+
+  /* ── MAIN CONTENT ── */
+  .content {
+    padding: 16px 12px calc(80px + var(--safe-bottom));
+  }
+
+  /* ── BOOK GRID ── */
+  .book-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 10px;
+  }
+
+  .book-card {
+    aspect-ratio: 2/3;
+    border-radius: 6px;
+    overflow: hidden;
+    position: relative;
+    box-shadow: 0 3px 10px rgba(44,36,22,0.15), 2px 0 0 rgba(0,0,0,0.08) inset;
+    cursor: pointer;
+    transition: transform 0.18s, box-shadow 0.18s;
+    background: var(--bg2);
+  }
+  .book-card:active { transform: scale(0.96); }
+
+  .book-card img {
+    width: 100%; height: 100%;
+    object-fit: cover;
+    display: block;
+  }
+
+  .book-card .no-cover {
+    width: 100%; height: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 8px;
+    background: linear-gradient(135deg, var(--bg2) 0%, var(--border) 100%);
+    gap: 6px;
+  }
+  .book-card .no-cover-icon { font-size: 28px; opacity: 0.4; }
+  .book-card .no-cover-title {
+    font-size: 10px;
+    text-align: center;
+    color: var(--text2);
+    line-height: 1.3;
+    word-break: break-all;
+    overflow: hidden;
+    display: -webkit-box;
+    -webkit-line-clamp: 4;
+    -webkit-box-orient: vertical;
+  }
+
+  .status-dot {
+    position: absolute;
+    top: 5px; right: 5px;
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    border: 1.5px solid rgba(255,255,255,0.8);
+  }
+  .status-dot.reading { background: var(--reading); }
+  .status-dot.toread { background: var(--toread); }
+  .status-dot.finished { background: var(--finished); }
+
+  /* ── EMPTY STATE ── */
+  .empty-state {
+    text-align: center;
+    padding: 60px 20px;
+    color: var(--text3);
+  }
+  .empty-state .empty-icon { font-size: 52px; margin-bottom: 16px; opacity: 0.5; }
+  .empty-state h3 { font-size: 18px; font-weight: 400; margin-bottom: 8px; color: var(--text2); }
+  .empty-state p { font-size: 14px; line-height: 1.6; }
+
+  /* ── CALENDAR ── */
+  .calendar-wrap { padding: 0; }
+  .cal-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 4px 16px;
+  }
+  .cal-month {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 22px;
+    font-weight: 600;
+  }
+  .cal-nav {
+    display: flex; gap: 8px;
+  }
+  .cal-nav button {
+    width: 32px; height: 32px;
+    border-radius: 50%;
+    border: 1px solid var(--border);
+    background: var(--surface);
+    color: var(--text);
+    font-size: 16px;
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer;
+  }
+
+  .cal-grid {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 3px;
+  }
+
+  .cal-dow {
+    text-align: center;
+    font-size: 11px;
+    color: var(--text3);
+    padding-bottom: 6px;
+    font-family: 'Cormorant Garamond', serif;
+    letter-spacing: 0.05em;
+  }
+
+  .cal-cell {
+    aspect-ratio: 1;
+    border-radius: 4px;
+    overflow: hidden;
+    position: relative;
+    background: var(--bg2);
+  }
+
+  .cal-cell .cell-num {
+    position: absolute;
+    top: 2px; left: 3px;
+    font-size: 9px;
+    color: var(--text3);
+    z-index: 2;
+    line-height: 1;
+    font-family: 'Cormorant Garamond', serif;
+  }
+
+  .cal-cell.today .cell-num {
+    color: var(--accent);
+    font-weight: 700;
+  }
+
+  .cal-cell.empty { background: transparent; }
+
+  .cal-cell .cover-fill {
+    width: 100%; height: 100%;
+    object-fit: cover;
+    display: block;
+  }
+
+  .cal-cell .cover-half {
+    position: absolute;
+    top: 0; height: 100%;
+    width: 50%;
+    object-fit: cover;
+  }
+  .cal-cell .cover-half.left { left: 0; }
+  .cal-cell .cover-half.right { right: 0; }
+
+  .cal-cell .cover-quad {
+    position: absolute;
+    width: 50%; height: 50%;
+    object-fit: cover;
+  }
+  .cal-cell .cover-quad.tl { top: 0; left: 0; }
+  .cal-cell .cover-quad.tr { top: 0; right: 0; }
+  .cal-cell .cover-quad.bl { bottom: 0; left: 0; }
+  .cal-cell .cover-quad.br { bottom: 0; right: 0; }
+
+  .cal-cell .more-badge {
+    position: absolute;
+    bottom: 2px; right: 2px;
+    background: rgba(0,0,0,0.6);
+    color: white;
+    font-size: 8px;
+    padding: 1px 3px;
+    border-radius: 3px;
+    z-index: 3;
+  }
+
+  /* ── BOTTOM NAV ── */
+  .bottom-nav {
+    position: fixed;
+    bottom: 0; left: 0; right: 0;
+    z-index: 100;
+    background: var(--surface);
+    border-top: 1px solid var(--border);
+    display: flex;
+    padding-bottom: var(--safe-bottom);
+  }
+
+  .nav-item {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 10px 0;
+    cursor: pointer;
+    border: none;
+    background: none;
+    color: var(--text3);
+    font-size: 11px;
+    gap: 3px;
+    font-family: 'Noto Serif TC', serif;
+    transition: color 0.15s;
+  }
+  .nav-item.active { color: var(--accent); }
+  .nav-icon { font-size: 22px; line-height: 1; }
+
+  /* ── MODAL OVERLAY ── */
+  .modal-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    z-index: 200;
+    background: rgba(44,36,22,0.5);
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
+    align-items: flex-end;
+  }
+  .modal-overlay.open { display: flex; }
+
+  .modal-sheet {
+    width: 100%;
+    background: var(--surface);
+    border-radius: 20px 20px 0 0;
+    padding: calc(16px) 20px calc(20px + var(--safe-bottom));
+    max-height: 92dvh;
+    overflow-y: auto;
+    animation: slideUp 0.28s cubic-bezier(0.32, 0.72, 0, 1);
+  }
+  @keyframes slideUp {
+    from { transform: translateY(100%); }
+    to { transform: translateY(0); }
+  }
+
+  .modal-handle {
+    width: 36px; height: 4px;
+    background: var(--border);
+    border-radius: 2px;
+    margin: 0 auto 20px;
+  }
+
+  .modal-title {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 22px;
+    font-weight: 600;
+    margin-bottom: 20px;
+  }
+
+  /* ── SEARCH ── */
+  .search-bar {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 16px;
+  }
+
+  .search-input {
+    flex: 1;
+    padding: 11px 14px;
+    border-radius: 10px;
+    border: 1.5px solid var(--border);
+    background: var(--bg);
+    font-family: 'Noto Serif TC', serif;
+    font-size: 15px;
+    color: var(--text);
+    outline: none;
+    transition: border-color 0.18s;
+  }
+  .search-input:focus { border-color: var(--accent); }
+  .search-input::placeholder { color: var(--text3); }
+
+  .search-btn {
+    padding: 11px 18px;
+    border-radius: 10px;
+    background: var(--accent);
+    color: white;
+    border: none;
+    font-size: 15px;
+    cursor: pointer;
+    font-family: 'Noto Serif TC', serif;
+    white-space: nowrap;
+    transition: opacity 0.15s;
+  }
+  .search-btn:active { opacity: 0.8; }
+
+  /* ── SEARCH RESULTS ── */
+  .search-results {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    max-height: 320px;
+    overflow-y: auto;
+    margin-bottom: 16px;
+  }
+
+  .result-item {
+    display: flex;
+    gap: 12px;
+    padding: 10px;
+    border-radius: 10px;
+    background: var(--bg);
+    border: 1.5px solid transparent;
+    cursor: pointer;
+    transition: border-color 0.15s, background 0.15s;
+    align-items: center;
+  }
+  .result-item:active, .result-item.selected {
+    border-color: var(--accent);
+    background: #fdf6f0;
+  }
+
+  .result-cover {
+    width: 48px; height: 68px;
+    border-radius: 4px;
+    object-fit: cover;
+    flex-shrink: 0;
+    background: var(--bg2);
+  }
+
+  .result-info { flex: 1; min-width: 0; }
+  .result-title {
+    font-size: 14px;
+    font-weight: 600;
+    margin-bottom: 3px;
+    overflow: hidden;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+  }
+  .result-author { font-size: 12px; color: var(--text2); }
+
+  .manual-btn {
+    width: 100%;
+    padding: 12px;
+    border-radius: 10px;
+    border: 1.5px dashed var(--border);
+    background: transparent;
+    color: var(--text2);
+    font-family: 'Noto Serif TC', serif;
+    font-size: 14px;
+    cursor: pointer;
+    margin-bottom: 16px;
+  }
+
+  /* ── BOOK EDIT FORM ── */
+  .form-section { margin-bottom: 20px; }
+  .form-label {
+    font-size: 12px;
+    color: var(--text3);
+    letter-spacing: 0.06em;
+    margin-bottom: 6px;
+    display: block;
+  }
+
+  .form-input {
+    width: 100%;
+    padding: 11px 14px;
+    border-radius: 10px;
+    border: 1.5px solid var(--border);
+    background: var(--bg);
+    font-family: 'Noto Serif TC', serif;
+    font-size: 15px;
+    color: var(--text);
+    outline: none;
+    transition: border-color 0.18s;
+  }
+  .form-input:focus { border-color: var(--accent); }
+
+  .status-picker {
+    display: flex;
+    gap: 8px;
+  }
+
+  .status-option {
+    flex: 1;
+    padding: 10px 6px;
+    border-radius: 10px;
+    border: 1.5px solid var(--border);
+    background: transparent;
+    font-family: 'Noto Serif TC', serif;
+    font-size: 12px;
+    cursor: pointer;
+    text-align: center;
+    transition: all 0.15s;
+    color: var(--text2);
+  }
+  .status-option.active-toread { border-color: var(--toread); background: #eef0f7; color: var(--toread); }
+  .status-option.active-reading { border-color: var(--reading); background: #eef4f0; color: var(--reading); }
+  .status-option.active-finished { border-color: var(--finished); background: #fdf3ee; color: var(--finished); }
+
+  .cover-preview-wrap {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 8px;
+  }
+  .cover-preview {
+    width: 60px; height: 84px;
+    border-radius: 6px;
+    object-fit: cover;
+    background: var(--bg2);
+    flex-shrink: 0;
+  }
+  .cover-preview.no-img {
+    display: flex; align-items: center; justify-content: center;
+    font-size: 24px; opacity: 0.3;
+  }
+  .cover-url-input {
+    flex: 1;
+    padding: 9px 12px;
+    border-radius: 8px;
+    border: 1.5px solid var(--border);
+    background: var(--bg);
+    font-family: 'Noto Serif TC', serif;
+    font-size: 12px;
+    color: var(--text);
+    outline: none;
+  }
+
+  .date-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+  }
+  .date-field label { display: block; font-size: 11px; color: var(--text3); margin-bottom: 4px; }
+  .date-field input {
+    width: 100%;
+    padding: 9px 10px;
+    border-radius: 8px;
+    border: 1.5px solid var(--border);
+    background: var(--bg);
+    font-family: 'Noto Serif TC', serif;
+    font-size: 13px;
+    color: var(--text);
+    outline: none;
+  }
+
+  .save-btn {
+    width: 100%;
+    padding: 15px;
+    border-radius: 12px;
+    background: var(--accent);
+    color: white;
+    border: none;
+    font-family: 'Noto Serif TC', serif;
+    font-size: 16px;
+    cursor: pointer;
+    letter-spacing: 0.06em;
+    box-shadow: 0 4px 12px rgba(139,94,60,0.3);
+    transition: opacity 0.15s;
+  }
+  .save-btn:active { opacity: 0.85; }
+
+  .delete-btn {
+    width: 100%;
+    padding: 13px;
+    border-radius: 12px;
+    background: transparent;
+    color: #c0392b;
+    border: 1.5px solid #e8c4c0;
+    font-family: 'Noto Serif TC', serif;
+    font-size: 14px;
+    cursor: pointer;
+    margin-top: 10px;
+  }
+
+  /* ── BOOK DETAIL MODAL ── */
+  .detail-cover-wrap {
+    display: flex;
+    justify-content: center;
+    margin-bottom: 20px;
+  }
+  .detail-cover {
+    width: 120px; height: 168px;
+    border-radius: 8px;
+    object-fit: cover;
+    box-shadow: 0 8px 24px rgba(44,36,22,0.2), 3px 0 0 rgba(0,0,0,0.1);
+    background: var(--bg2);
+  }
+  .detail-title {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 22px;
+    font-weight: 600;
+    text-align: center;
+    margin-bottom: 6px;
+    line-height: 1.3;
+  }
+  .detail-author {
+    text-align: center;
+    color: var(--text2);
+    font-size: 14px;
+    margin-bottom: 20px;
+  }
+  .detail-status {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 14px;
+    border-radius: 20px;
+    font-size: 13px;
+    margin: 0 auto 20px;
+    display: flex;
+    justify-content: center;
+  }
+  .detail-status.reading { background: #eef4f0; color: var(--reading); }
+  .detail-status.toread { background: #eef0f7; color: var(--toread); }
+  .detail-status.finished { background: #fdf3ee; color: var(--finished); }
+
+  .detail-dates {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    margin-bottom: 20px;
+  }
+  .detail-date-box {
+    background: var(--bg);
+    border-radius: 10px;
+    padding: 12px;
+    text-align: center;
+  }
+  .detail-date-box .dlabel { font-size: 10px; color: var(--text3); margin-bottom: 4px; letter-spacing: 0.06em; }
+  .detail-date-box .dval { font-size: 15px; color: var(--text); font-family: 'Cormorant Garamond', serif; }
+
+  .edit-btn {
+    width: 100%;
+    padding: 13px;
+    border-radius: 12px;
+    background: var(--bg2);
+    color: var(--text);
+    border: 1.5px solid var(--border);
+    font-family: 'Noto Serif TC', serif;
+    font-size: 15px;
+    cursor: pointer;
+  }
+
+  /* ── LOADING SPINNER ── */
+  .spinner {
+    text-align: center;
+    padding: 20px;
+    color: var(--text3);
+    font-size: 14px;
+  }
+
+  /* ── TOAST ── */
+  .toast {
+    position: fixed;
+    bottom: calc(80px + var(--safe-bottom) + 10px);
+    left: 50%;
+    transform: translateX(-50%) translateY(20px);
+    background: var(--text);
+    color: white;
+    padding: 10px 20px;
+    border-radius: 20px;
+    font-size: 14px;
+    opacity: 0;
+    transition: all 0.3s;
+    pointer-events: none;
+    white-space: nowrap;
+    z-index: 300;
+  }
+  .toast.show {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+</style>
+</head>
+<body>
+
+<!-- TOP BAR -->
+<div class="topbar">
+  <div class="topbar-inner">
+    <div class="app-title">My <span>Library</span></div>
+    <button class="add-btn" onclick="openAddModal()">＋</button>
+  </div>
+  <div class="tabs" id="tabs">
+    <button class="tab active" onclick="setFilter('all', this)">📚 全部</button>
+    <button class="tab" onclick="setFilter('reading', this)">📖 讀書中</button>
+    <button class="tab" onclick="setFilter('toread', this)">🔖 未讀</button>
+    <button class="tab" onclick="setFilter('finished', this)">✅ 讀完</button>
+  </div>
+</div>
+
+<!-- MAIN CONTENT -->
+<div class="content" id="content">
+  <div class="book-grid" id="bookGrid"></div>
+</div>
+
+<!-- CALENDAR CONTENT (hidden initially) -->
+<div class="content" id="calContent" style="display:none">
+  <div class="calendar-wrap">
+    <div class="cal-header">
+      <div class="cal-month" id="calMonth"></div>
+      <div class="cal-nav">
+        <button onclick="changeMonth(-1)">‹</button>
+        <button onclick="changeMonth(1)">›</button>
+      </div>
+    </div>
+    <div class="cal-grid" id="calGrid"></div>
+  </div>
+</div>
+
+<!-- BOTTOM NAV -->
+<div class="bottom-nav">
+  <button class="nav-item active" id="navLibrary" onclick="switchView('library')">
+    <span class="nav-icon">📚</span>
+    <span>書庫</span>
+  </button>
+  <button class="nav-item" id="navCalendar" onclick="switchView('calendar')">
+    <span class="nav-icon">📅</span>
+    <span>日曆</span>
+  </button>
+</div>
+
+<!-- ADD/SEARCH MODAL -->
+<div class="modal-overlay" id="addModal">
+  <div class="modal-sheet">
+    <div class="modal-handle"></div>
+    <div class="modal-title">加入書籍</div>
+
+    <div class="search-bar">
+      <input type="text" class="search-input" id="searchInput" placeholder="輸入書名或作者名…" onkeydown="if(event.key==='Enter') doSearch()">
+      <button class="search-btn" onclick="doSearch()">搜索</button>
+    </div>
+
+    <div id="searchResults"></div>
+
+    <button class="manual-btn" onclick="openEditModal(null, true)">✏️ 手動輸入</button>
+  </div>
+</div>
+
+<!-- EDIT/ADD BOOK MODAL -->
+<div class="modal-overlay" id="editModal">
+  <div class="modal-sheet">
+    <div class="modal-handle"></div>
+    <div class="modal-title" id="editModalTitle">書籍資料</div>
+
+    <div class="form-section">
+      <div class="cover-preview-wrap">
+        <div id="coverPreviewBox" class="cover-preview no-img">📖</div>
+        <input type="text" class="cover-url-input" id="coverUrlInput" placeholder="封面圖片網址（可留空）" oninput="updateCoverPreview()">
+      </div>
+    </div>
+
+    <div class="form-section">
+      <label class="form-label">書名</label>
+      <input type="text" class="form-input" id="titleInput" placeholder="書名">
+    </div>
+
+    <div class="form-section">
+      <label class="form-label">作者</label>
+      <input type="text" class="form-input" id="authorInput" placeholder="作者">
+    </div>
+
+    <div class="form-section">
+      <label class="form-label">閱讀狀態</label>
+      <div class="status-picker">
+        <button class="status-option active-toread" id="s-toread" onclick="setStatus('toread')">🔖 未讀</button>
+        <button class="status-option" id="s-reading" onclick="setStatus('reading')">📖 讀書中</button>
+        <button class="status-option" id="s-finished" onclick="setStatus('finished')">✅ 讀完</button>
+      </div>
+    </div>
+
+    <div class="form-section">
+      <label class="form-label">日期</label>
+      <div class="date-row">
+        <div class="date-field">
+          <label>開始閱讀</label>
+          <input type="date" id="startDateInput">
+        </div>
+        <div class="date-field">
+          <label>完讀日期</label>
+          <input type="date" id="endDateInput">
+        </div>
+      </div>
+    </div>
+
+    <button class="save-btn" onclick="saveBook()">儲存</button>
+    <button class="delete-btn" id="deleteBtn" style="display:none" onclick="deleteBook()">刪除這本書</button>
+  </div>
+</div>
+
+<!-- BOOK DETAIL MODAL -->
+<div class="modal-overlay" id="detailModal">
+  <div class="modal-sheet">
+    <div class="modal-handle"></div>
+    <div class="detail-cover-wrap">
+      <div id="detailCoverWrap">
+        <img id="detailCover" class="detail-cover" src="" alt="">
+      </div>
+    </div>
+    <div class="detail-title" id="detailTitle"></div>
+    <div class="detail-author" id="detailAuthor"></div>
+    <div class="detail-status" id="detailStatus"></div>
+    <div class="detail-dates">
+      <div class="detail-date-box">
+        <div class="dlabel">開始閱讀</div>
+        <div class="dval" id="detailStart">—</div>
+      </div>
+      <div class="detail-date-box">
+        <div class="dlabel">完讀日期</div>
+        <div class="dval" id="detailEnd">—</div>
+      </div>
+    </div>
+    <button class="edit-btn" onclick="editCurrentBook()">✏️ 編輯</button>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ── DATA ──
+let books = JSON.parse(localStorage.getItem('myLibraryBooks') || '[]');
+let currentFilter = 'all';
+let currentView = 'library';
+let calYear, calMonth;
+let editingId = null;
+let currentDetailId = null;
+const today = new Date();
+calYear = today.getFullYear();
+calMonth = today.getMonth();
+
+function saveData() {
+  localStorage.setItem('myLibraryBooks', JSON.stringify(books));
+}
+
+function genId() {
+  return Date.now().toString(36) + Math.random().toString(36).slice(2);
+}
+
+// ── VIEWS ──
+function switchView(v) {
+  currentView = v;
+  document.getElementById('content').style.display = v === 'library' ? '' : 'none';
+  document.getElementById('calContent').style.display = v === 'calendar' ? '' : 'none';
+  document.getElementById('topbar')?.classList;
+  document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
+  document.getElementById(v === 'library' ? 'navLibrary' : 'navCalendar').classList.add('active');
+
+  // Show/hide tabs and add button for library only
+  document.querySelector('.tabs').style.display = v === 'library' ? '' : 'none';
+  document.querySelector('.add-btn').style.display = v === 'library' ? '' : 'none';
+
+  if (v === 'calendar') renderCalendar();
+  else renderBooks();
+}
+
+function setFilter(f, el) {
+  currentFilter = f;
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  el.classList.add('active');
+  renderBooks();
+}
+
+// ── RENDER BOOKS ──
+function renderBooks() {
+  const grid = document.getElementById('bookGrid');
+  let filtered = books;
+  if (currentFilter !== 'all') filtered = books.filter(b => b.status === currentFilter);
+
+  if (filtered.length === 0) {
+    grid.innerHTML = '';
+    grid.insertAdjacentHTML('afterend', '');
+    document.getElementById('bookGrid').outerHTML = `<div class="book-grid" id="bookGrid"></div>`;
+    document.getElementById('bookGrid').parentElement.innerHTML = `
+      <div class="empty-state">
+        <div class="empty-icon">📖</div>
+        <h3>${currentFilter === 'all' ? '書庫還是空的' : '這個分類沒有書'}</h3>
+        <p>按右上角 ＋ 加入你的第一本書</p>
+      </div>
+      <div class="book-grid" id="bookGrid" style="display:none"></div>
+    `;
+    return;
+  }
+
+  grid.parentElement.innerHTML = `<div class="book-grid" id="bookGrid"></div>`;
+  const newGrid = document.getElementById('bookGrid');
+  filtered.forEach(book => {
+    const card = document.createElement('div');
+    card.className = 'book-card';
+    card.onclick = () => openDetail(book.id);
+    if (book.coverUrl) {
+      card.innerHTML = `<img src="${book.coverUrl}" alt="${book.title}" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">
+        <div class="no-cover" style="display:none"><div class="no-cover-icon">📖</div><div class="no-cover-title">${book.title}</div></div>`;
+    } else {
+      card.innerHTML = `<div class="no-cover"><div class="no-cover-icon">📖</div><div class="no-cover-title">${book.title}</div></div>`;
+    }
+    card.insertAdjacentHTML('beforeend', `<div class="status-dot ${book.status}"></div>`);
+    newGrid.appendChild(card);
+  });
+}
+
+// ── CALENDAR ──
+function changeMonth(d) {
+  calMonth += d;
+  if (calMonth > 11) { calMonth = 0; calYear++; }
+  if (calMonth < 0) { calMonth = 11; calYear--; }
+  renderCalendar();
+}
+
+function renderCalendar() {
+  const monthNames = ['一月','二月','三月','四月','五月','六月','七月','八月','九月','十月','十一月','十二月'];
+  document.getElementById('calMonth').textContent = `${calYear} ${monthNames[calMonth]}`;
+
+  const grid = document.getElementById('calGrid');
+  grid.innerHTML = '';
+  const dows = ['日','一','二','三','四','五','六'];
+  dows.forEach(d => {
+    const el = document.createElement('div');
+    el.className = 'cal-dow';
+    el.textContent = d;
+    grid.appendChild(el);
+  });
+
+  const firstDay = new Date(calYear, calMonth, 1).getDay();
+  const daysInMonth = new Date(calYear, calMonth + 1, 0).getDate();
+
+  // Build map: dateStr -> [books finished that day]
+  const finishMap = {};
+  books.forEach(b => {
+    if (b.status === 'finished' && b.endDate) {
+      const key = b.endDate.slice(0, 10);
+      if (!finishMap[key]) finishMap[key] = [];
+      finishMap[key].push(b);
+    }
+  });
+
+  // Empty cells
+  for (let i = 0; i < firstDay; i++) {
+    const el = document.createElement('div');
+    el.className = 'cal-cell empty';
+    grid.appendChild(el);
+  }
+
+  for (let d = 1; d <= daysInMonth; d++) {
+    const el = document.createElement('div');
+    el.className = 'cal-cell';
+    const dateKey = `${calYear}-${String(calMonth+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+    const isToday = today.getFullYear()===calYear && today.getMonth()===calMonth && today.getDate()===d;
+    if (isToday) el.classList.add('today');
+
+    const dayBooks = finishMap[dateKey] || [];
+
+    if (dayBooks.length === 0) {
+      el.innerHTML = `<span class="cell-num">${d}</span>`;
+    } else if (dayBooks.length === 1) {
+      const b = dayBooks[0];
+      el.innerHTML = b.coverUrl
+        ? `<img class="cover-fill" src="${b.coverUrl}" alt="" onerror="this.outerHTML='<span class=cell-num>${d}</span>'">`
+        : `<span class="cell-num">${d}</span>`;
+      if (b.coverUrl) el.insertAdjacentHTML('beforeend', `<span class="cell-num">${d}</span>`);
+    } else if (dayBooks.length === 2) {
+      const covers = dayBooks.map(b => b.coverUrl ? `<img class="cover-half ${['left','right'][dayBooks.indexOf(b)]}" src="${b.coverUrl}" alt="">` : '').join('');
+      el.innerHTML = `${covers}<span class="cell-num">${d}</span>`;
+    } else {
+      const [a,b2,c,dd2] = dayBooks;
+      const slots = [a,b2,c,dd2].filter(Boolean);
+      let html = '';
+      const pos = ['tl','tr','bl','br'];
+      slots.slice(0,4).forEach((bk,i) => {
+        if (bk.coverUrl) html += `<img class="cover-quad ${pos[i]}" src="${bk.coverUrl}" alt="">`;
+      });
+      html += `<span class="cell-num">${d}</span>`;
+      if (dayBooks.length > 4) html += `<span class="more-badge">+${dayBooks.length-4}</span>`;
+      el.innerHTML = html;
+    }
+
+    el.onclick = () => {
+      if (dayBooks.length === 1) openDetail(dayBooks[0].id);
+    };
+    grid.appendChild(el);
+  }
+}
+
+// ── ADD MODAL ──
+function openAddModal() {
+  document.getElementById('searchInput').value = '';
+  document.getElementById('searchResults').innerHTML = '';
+  document.getElementById('addModal').classList.add('open');
+}
+
+// ── SEARCH ──
+async function doSearch() {
+  const q = document.getElementById('searchInput').value.trim();
+  if (!q) return;
+  const res = document.getElementById('searchResults');
+  res.innerHTML = '<div class="spinner">搜索中…</div>';
+
+  try {
+    const results = await searchBooks(q);
+    if (results.length === 0) {
+      res.innerHTML = '<div class="spinner">找不到結果，請嘗試其他關鍵字</div>';
+      return;
+    }
+    res.innerHTML = '';
+    results.forEach(item => {
+      const div = document.createElement('div');
+      div.className = 'result-item';
+      div.innerHTML = `
+        ${item.cover ? `<img class="result-cover" src="${item.cover}" alt="" onerror="this.style.display='none'">` : '<div class="result-cover" style="display:flex;align-items:center;justify-content:center;font-size:20px;opacity:.3">📖</div>'}
+        <div class="result-info">
+          <div class="result-title">${item.title}</div>
+          <div class="result-author">${item.author || ''}</div>
+        </div>
+      `;
+      div.onclick = () => {
+        closeModal('addModal');
+        openEditModal({ title: item.title, author: item.author, coverUrl: item.cover }, true);
+      };
+      res.appendChild(div);
+    });
+  } catch(e) {
+    res.innerHTML = '<div class="spinner">搜索失敗，請稍後再試</div>';
+  }
+}
+
+async function searchBooks(query) {
+  const results = [];
+  // Google Books
+  try {
+    const r = await fetch(`https://www.googleapis.com/books/v1/volumes?q=${encodeURIComponent(query)}&maxResults=8&langRestrict=zh,ja`);
+    const data = await r.json();
+    (data.items || []).forEach(item => {
+      const vi = item.volumeInfo || {};
+      const cover = vi.imageLinks?.thumbnail?.replace('http:','https:') || vi.imageLinks?.smallThumbnail?.replace('http:','https:') || null;
+      results.push({
+        title: vi.title || '',
+        author: (vi.authors || []).join('、'),
+        cover
+      });
+    });
+  } catch(e) {}
+
+  // Also try without language restriction for Japanese titles
+  if (results.length < 4) {
+    try {
+      const r2 = await fetch(`https://www.googleapis.com/books/v1/volumes?q=${encodeURIComponent(query)}&maxResults=8`);
+      const data2 = await r2.json();
+      (data2.items || []).forEach(item => {
+        const vi = item.volumeInfo || {};
+        const cover = vi.imageLinks?.thumbnail?.replace('http:','https:') || null;
+        const title = vi.title || '';
+        if (!results.find(x => x.title === title)) {
+          results.push({ title, author: (vi.authors || []).join('、'), cover });
+        }
+      });
+    } catch(e) {}
+  }
+
+  return results.slice(0, 10);
+}
+
+// ── EDIT MODAL ──
+let editStatus = 'toread';
+
+function openEditModal(prefill, isNew) {
+  editingId = isNew && !prefill?.id ? null : (prefill?.id || null);
+  editStatus = prefill?.status || 'toread';
+
+  document.getElementById('editModalTitle').textContent = editingId ? '編輯書籍' : '新增書籍';
+  document.getElementById('titleInput').value = prefill?.title || '';
+  document.getElementById('authorInput').value = prefill?.author || '';
+  document.getElementById('coverUrlInput').value = prefill?.coverUrl || '';
+  document.getElementById('startDateInput').value = prefill?.startDate || '';
+  document.getElementById('endDateInput').value = prefill?.endDate || '';
+  document.getElementById('deleteBtn').style.display = editingId ? '' : 'none';
+
+  updateCoverPreview();
+  updateStatusPicker();
+  closeModal('addModal');
+  closeModal('detailModal');
+  document.getElementById('editModal').classList.add('open');
+}
+
+function updateCoverPreview() {
+  const url = document.getElementById('coverUrlInput').value.trim();
+  const box = document.getElementById('coverPreviewBox');
+  if (url) {
+    box.outerHTML = `<img id="coverPreviewBox" class="cover-preview" src="${url}" alt="" onerror="this.outerHTML='<div id=coverPreviewBox class=cover-preview no-img>📖</div>'">`;
+  } else {
+    box.outerHTML = `<div id="coverPreviewBox" class="cover-preview no-img">📖</div>`;
+  }
+}
+
+function setStatus(s) {
+  editStatus = s;
+  updateStatusPicker();
+}
+
+function updateStatusPicker() {
+  ['toread','reading','finished'].forEach(s => {
+    const btn = document.getElementById('s-' + s);
+    btn.className = 'status-option';
+    if (editStatus === s) btn.className = 'status-option active-' + s;
+  });
+}
+
+function saveBook() {
+  const title = document.getElementById('titleInput').value.trim();
+  if (!title) { showToast('請輸入書名'); return; }
+
+  const book = {
+    id: editingId || genId(),
+    title,
+    author: document.getElementById('authorInput').value.trim(),
+    coverUrl: document.getElementById('coverUrlInput').value.trim(),
+    status: editStatus,
+    startDate: document.getElementById('startDateInput').value || '',
+    endDate: document.getElementById('endDateInput').value || '',
+  };
+
+  if (editingId) {
+    const idx = books.findIndex(b => b.id === editingId);
+    if (idx !== -1) books[idx] = book;
+  } else {
+    books.unshift(book);
+  }
+
+  saveData();
+  closeModal('editModal');
+  renderBooks();
+  showToast(editingId ? '已更新 ✓' : '已加入書庫 ✓');
+}
+
+function deleteBook() {
+  if (!editingId) return;
+  books = books.filter(b => b.id !== editingId);
+  saveData();
+  closeModal('editModal');
+  renderBooks();
+  showToast('已刪除');
+}
+
+// ── DETAIL MODAL ──
+function openDetail(id) {
+  const book = books.find(b => b.id === id);
+  if (!book) return;
+  currentDetailId = id;
+
+  const coverEl = document.getElementById('detailCover');
+  if (book.coverUrl) {
+    coverEl.src = book.coverUrl;
+    coverEl.style.display = '';
+  } else {
+    coverEl.src = '';
+    coverEl.style.display = 'none';
+  }
+
+  document.getElementById('detailTitle').textContent = book.title;
+  document.getElementById('detailAuthor').textContent = book.author || '作者不詳';
+
+  const statusEl = document.getElementById('detailStatus');
+  const statusMap = { toread: ['🔖 未讀', 'toread'], reading: ['📖 讀書中', 'reading'], finished: ['✅ 已讀完', 'finished'] };
+  const [label, cls] = statusMap[book.status] || statusMap.toread;
+  statusEl.textContent = label;
+  statusEl.className = 'detail-status ' + cls;
+
+  document.getElementById('detailStart').textContent = book.startDate ? formatDate(book.startDate) : '—';
+  document.getElementById('detailEnd').textContent = book.endDate ? formatDate(book.endDate) : '—';
+
+  document.getElementById('detailModal').classList.add('open');
+}
+
+function editCurrentBook() {
+  const book = books.find(b => b.id === currentDetailId);
+  if (book) openEditModal(book, false);
+}
+
+function formatDate(d) {
+  if (!d) return '—';
+  const [y, m, day] = d.split('-');
+  return `${m}/${day}`;
+}
+
+// ── HELPERS ──
+function closeModal(id) {
+  document.getElementById(id).classList.remove('open');
+}
+
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2000);
+}
+
+// Close modals on overlay click
+document.querySelectorAll('.modal-overlay').forEach(overlay => {
+  overlay.addEventListener('click', e => {
+    if (e.target === overlay) overlay.classList.remove('open');
+  });
+});
+
+// ── INIT ──
+renderBooks();
+</script>
+</body>
+</html>
