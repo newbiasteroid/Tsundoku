@@ -719,10 +719,14 @@ async function searchGoogle(query) {
   return results.slice(0,12);
 }
 
+// ── CORS PROXY ──
+const PROXY = 'https://corsproxy.io/?url=';
+
 // ── SOURCE B: RANOBEDB (direct cover) ──
 async function searchRanobeDB(query) {
   try {
-    const r = await fetch(`https://ranobedb.org/api/v0/books?q=${encodeURIComponent(query)}&limit=15&sort=Relevance+desc`);
+    const url = `https://ranobedb.org/api/v0/books?q=${encodeURIComponent(query)}&limit=15&sort=Relevance+desc`;
+    const r = await fetch(PROXY + encodeURIComponent(url));
     const data = await r.json();
     return (data.books||[]).map(book => ({
       title: book.title || book.title_orig || '',
@@ -735,42 +739,37 @@ async function searchRanobeDB(query) {
 // ── SOURCE C: AMAZON via RANOBEDB ──
 async function searchAmazonViaRanobe(query) {
   try {
-    // Step 1: search RanobeDB for book IDs
-    const r = await fetch(`https://ranobedb.org/api/v0/books?q=${encodeURIComponent(query)}&limit=15&sort=Relevance+desc`);
+    const url = `https://ranobedb.org/api/v0/books?q=${encodeURIComponent(query)}&limit=15&sort=Relevance+desc`;
+    const r = await fetch(PROXY + encodeURIComponent(url));
     const data = await r.json();
     const books = data.books||[];
     if (!books.length) return [];
 
     const results = [];
-    // Step 2: for each book, get detail to find ASIN from releases
     const fetchDetail = async (book) => {
       const title = book.title || book.title_orig || '';
       if (!title) return;
       try {
-        const dr = await fetch(`https://ranobedb.org/api/v0/book/${book.id}`);
+        const detailUrl = `https://ranobedb.org/api/v0/book/${book.id}`;
+        const dr = await fetch(PROXY + encodeURIComponent(detailUrl));
         const detail = await dr.json();
-        // Find a release with amazon link
         const release = (detail.releases||[]).find(rel => rel.amazon);
         let cover = null;
         if (release?.amazon) {
-          // Extract ASIN from Amazon URL
           const asinMatch = release.amazon.match(/\/dp\/([A-Z0-9]{10})/);
           if (asinMatch) {
             cover = `https://m.media-amazon.com/images/P/${asinMatch[1]}.01.MAIN._SCRM_.jpg`;
           }
         }
-        // Fallback to ranobedb cover if no amazon
         if (!cover && book.image?.filename) {
           cover = `https://images.ranobedb.org/${book.image.filename}`;
         }
-        // Get author from series staff
         results.push({ title, author: '', cover });
       } catch(e) {
         results.push({ title, author: '', cover: book.image?.filename ? `https://images.ranobedb.org/${book.image.filename}` : null });
       }
     };
 
-    // Fetch first 8 in parallel
     await Promise.all(books.slice(0,8).map(fetchDetail));
     return results.filter(b=>b.title);
   } catch(e) { return []; }
