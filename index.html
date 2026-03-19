@@ -150,8 +150,17 @@
   .star-picker { display: flex; align-items: center; gap: 2px; }
   .star-wrap { position: relative; width: 36px; height: 36px; cursor: pointer; flex-shrink: 0; }
   .star-wrap .star-base { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 30px; color: var(--border); line-height: 1; user-select: none; }
-  .star-wrap .star-fill { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 30px; color: var(--star); line-height: 1; overflow: hidden; width: 0%; transition: width 0.1s; user-select: none; }
+  /* star-fill clips from left — width 0%=empty, 50%=half, 100%=full */
+  .star-wrap .star-fill { position: absolute; top: 0; left: 0; height: 100%; overflow: hidden; display: flex; align-items: center; justify-content: flex-start; width: 0%; transition: width 0.1s; user-select: none; white-space: nowrap; }
+  .star-wrap .star-fill span { font-size: 30px; color: var(--star); line-height: 1; flex-shrink: 0; }
   .star-clear { font-size: 11px; color: var(--text3); background: none; border: none; cursor: pointer; padding: 4px 8px; font-family: 'Lato',sans-serif; text-decoration: underline; margin-left: 4px; }
+
+  /* ASIN in edit modal */
+  .asin-edit-row { display: flex; gap: 8px; margin-top: 8px; }
+  .asin-edit-input { flex: 1; padding: 8px 12px; border-radius: 8px; border: 1.5px solid var(--border); background: var(--bg); font-family: 'Lato',sans-serif; font-size: 12px; color: var(--text); outline: none; }
+  .asin-edit-input:focus { border-color: var(--accent); }
+  .asin-edit-input::placeholder { color: var(--text3); }
+  .asin-edit-btn { padding: 8px 14px; border-radius: 8px; background: var(--bg2); border: 1.5px solid var(--border); color: var(--text2); font-family: 'Lato',sans-serif; font-size: 12px; font-weight: 700; cursor: pointer; white-space: nowrap; }
 
   /* TAGS */
   .tag-input-wrap { display: flex; gap: 8px; margin-bottom: 8px; }
@@ -176,7 +185,11 @@
   .detail-cover { width: 120px; height: 168px; border-radius: 8px; object-fit: cover; box-shadow: 0 8px 24px rgba(44,36,22,0.2), 3px 0 0 rgba(0,0,0,0.1); background: var(--bg2); }
   .detail-title { font-family: 'Cormorant Garamond',serif; font-size: 22px; font-weight: 600; text-align: center; margin-bottom: 6px; line-height: 1.3; }
   .detail-author { text-align: center; color: var(--text2); font-size: 14px; margin-bottom: 10px; }
-  .detail-rating { text-align: center; font-size: 22px; color: var(--star); margin-bottom: 10px; min-height: 10px; }
+  .detail-rating { display: flex; justify-content: center; align-items: center; gap: 2px; margin-bottom: 10px; min-height: 28px; }
+  .detail-star-wrap { position: relative; width: 28px; height: 28px; flex-shrink: 0; }
+  .detail-star-wrap .ds-base { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 24px; color: var(--border); line-height: 1; }
+  .detail-star-wrap .ds-fill { position: absolute; top: 0; left: 0; height: 100%; overflow: hidden; display: flex; align-items: center; justify-content: flex-start; white-space: nowrap; }
+  .detail-star-wrap .ds-fill span { font-size: 24px; color: var(--star); line-height: 1; flex-shrink: 0; }
   .detail-tags { display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; margin-bottom: 14px; }
   .detail-tag { padding: 3px 10px; border-radius: 20px; background: var(--bg2); border: 1px solid var(--border); font-size: 12px; color: var(--text2); font-family: 'Lato',sans-serif; }
   .detail-status { display: flex; align-items: center; justify-content: center; gap: 6px; padding: 6px 14px; border-radius: 20px; font-size: 13px; font-weight: 700; margin-bottom: 16px; font-family: 'Lato',sans-serif; }
@@ -258,7 +271,7 @@
     <div class="divider-or">— OR —</div>
     <button class="manual-btn" onclick="openEditModal(null,true)">✏️ Manual Entry</button>
     <div class="asin-row">
-      <input type="text" class="asin-input" id="asinInput" placeholder="Amazon ASIN (e.g. B0FWQDGMZB)" maxlength="10">
+      <input type="text" class="asin-input" id="asinInput" placeholder="ASIN or Amazon URL">
       <button class="asin-btn" onclick="useAsin()">Use ASIN</button>
     </div>
   </div>
@@ -274,6 +287,10 @@
       <div class="cover-preview-wrap">
         <div id="coverPreviewBox" class="cover-preview">📖</div>
         <input type="text" class="cover-url-input" id="coverUrlInput" placeholder="Cover image URL" oninput="updateCoverPreview()">
+      </div>
+      <div class="asin-edit-row">
+        <input type="text" class="asin-edit-input" id="asinEditInput" placeholder="Or paste ASIN / Amazon URL to use Amazon cover">
+        <button class="asin-edit-btn" onclick="applyAsinCover()">Apply</button>
       </div>
     </div>
     <div class="form-section">
@@ -428,13 +445,11 @@ function renderBooks() {
 
 // ── HALF STAR HELPERS ──
 function renderStarText(rating) {
-  // rating is 0.5–5 in 0.5 steps
-  let s = '';
-  for (let i = 1; i <= 5; i++) {
-    if (rating >= i) s += '★';
-    else if (rating >= i - 0.5) s += '⯨'; // half star unicode (fallback ½★)
-    else s += '☆';
-  }
+  // card display: full stars only, show decimal for half (e.g. ★★★½)
+  const full = Math.floor(rating);
+  const half = (rating % 1) >= 0.5;
+  let s = '★'.repeat(full);
+  if (half) s += '½';
   return s;
 }
 
@@ -444,13 +459,11 @@ function buildStarPicker() {
   for (let i = 1; i <= 5; i++) {
     const sw = document.createElement('div');
     sw.className = 'star-wrap';
-    sw.innerHTML = `<div class="star-base">★</div><div class="star-fill" id="sf${i}">★</div>`;
-    // left half = i-0.5, right half = i
+    sw.innerHTML = `<div class="star-base">★</div><div class="star-fill" id="sf${i}"><span>★</span></div>`;
     sw.addEventListener('click', e => {
       const rect = sw.getBoundingClientRect();
       const x = e.clientX - rect.left;
-      const half = x < rect.width / 2;
-      setRating(half ? i - 0.5 : i);
+      setRating(x < rect.width / 2 ? i - 0.5 : i);
     });
     wrap.appendChild(sw);
   }
@@ -543,16 +556,35 @@ function openAddModal() {
   document.getElementById('addModal').classList.add('open');
 }
 
-// ── ASIN ──
+// ── ASIN HELPERS ──
+function extractAsin(input) {
+  const clean = (input || '').trim();
+  const urlMatch = clean.match(/\/dp\/([A-Z0-9]{10})/i);
+  if (urlMatch) return urlMatch[1].toUpperCase();
+  const asinMatch = clean.match(/^([A-Z0-9]{10})$/i);
+  if (asinMatch) return asinMatch[1].toUpperCase();
+  return null;
+}
+function asinToCoverUrl(asin) {
+  return `https://m.media-amazon.com/images/P/${asin}.01.MAIN._SCRM_.jpg`;
+}
+
+// From Add modal — ASIN only, brings cover into edit page
 function useAsin() {
-  const raw = document.getElementById('asinInput').value.trim().toUpperCase();
-  // Accept bare ASIN or full Amazon URL
-  const match = raw.match(/([A-Z0-9]{10})/);
-  if (!match) { showToast('Invalid ASIN'); return; }
-  const asin = match[1];
-  const coverUrl = `https://m.media-amazon.com/images/P/${asin}.01.MAIN._SCRM_.jpg`;
+  const asin = extractAsin(document.getElementById('asinInput').value);
+  if (!asin) { showToast('Cannot find ASIN — check input'); return; }
   closeModal('addModal');
-  openEditModal({ coverUrl }, true);
+  openEditModal({ coverUrl: asinToCoverUrl(asin) }, true);
+}
+
+// From Edit modal — replace cover URL with Amazon cover
+function applyAsinCover() {
+  const asin = extractAsin(document.getElementById('asinEditInput').value);
+  if (!asin) { showToast('Cannot find ASIN — check input'); return; }
+  document.getElementById('coverUrlInput').value = asinToCoverUrl(asin);
+  document.getElementById('asinEditInput').value = '';
+  updateCoverPreview();
+  showToast('Amazon cover applied ✓');
 }
 
 // ── SEARCH (Google Books only) ──
@@ -631,6 +663,7 @@ function openEditModal(prefill, isNew) {
   document.getElementById('startDateInput').value = prefill?.startDate||'';
   document.getElementById('endDateInput').value = prefill?.endDate||'';
   document.getElementById('tagInput').value = '';
+  document.getElementById('asinEditInput').value = '';
   document.getElementById('deleteBtn').style.display = editingId ? '' : 'none';
   buildStarPicker(); updateCoverPreview(); updateStatusPicker(); updateStarPicker(); renderTagsList();
   closeModal('addModal'); closeModal('detailModal');
@@ -692,13 +725,14 @@ function deleteBook(){
 // ── DETAIL ──
 function renderDetailRating(rating) {
   if (!rating) return '';
-  let s = '';
+  let html = '';
   for (let i = 1; i <= 5; i++) {
-    if (rating >= i) s += '★';
-    else if (rating >= i - 0.5) s += '⯨';
-    else s += '☆';
+    let fillW = '0%';
+    if (rating >= i) fillW = '100%';
+    else if (rating >= i - 0.5) fillW = '50%';
+    html += `<div class="detail-star-wrap"><div class="ds-base">★</div><div class="ds-fill" style="width:${fillW}"><span>★</span></div></div>`;
   }
-  return s;
+  return html;
 }
 
 function openDetail(id){
@@ -709,7 +743,7 @@ function openDetail(id){
   else{coverEl.src='';coverEl.style.display='none';}
   document.getElementById('detailTitle').textContent=book.title;
   document.getElementById('detailAuthor').textContent=book.author||'';
-  document.getElementById('detailRating').textContent=renderDetailRating(book.rating);
+  document.getElementById('detailRating').innerHTML = renderDetailRating(book.rating);
   document.getElementById('detailTags').innerHTML=(book.tags||[]).map(t=>`<span class="detail-tag">${t}</span>`).join('');
   const statusMap={toread:['🔖 To Read','toread'],reading:['📖 Reading','reading'],finished:['✅ Finished','finished']};
   const [label,cls]=statusMap[book.status]||statusMap.toread;
