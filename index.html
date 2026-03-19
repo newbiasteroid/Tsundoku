@@ -323,6 +323,22 @@
   .spinner { text-align: center; padding: 20px; color: var(--text3); font-size: 14px; }
   .toast { position: fixed; bottom: calc(80px + var(--safe-bottom) + 10px); left: 50%; transform: translateX(-50%) translateY(20px); background: var(--text); color: white; padding: 10px 20px; border-radius: 20px; font-size: 13px; font-weight: 700; opacity: 0; transition: all 0.3s; pointer-events: none; white-space: nowrap; z-index: 300; font-family: 'Lato', sans-serif; }
   .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+  /* IMAGE PICKER */
+  .img-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 16px; max-height: 400px; overflow-y: auto; }
+  .img-option {
+    aspect-ratio: 2/3; border-radius: 6px; overflow: hidden; cursor: pointer;
+    border: 2.5px solid transparent; transition: border-color 0.15s, transform 0.15s;
+    background: var(--bg2);
+  }
+  .img-option:active { transform: scale(0.96); }
+  .img-option.selected { border-color: var(--accent); }
+  .img-option img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .img-confirm-btn {
+    width: 100%; padding: 13px; border-radius: 12px; background: var(--accent); color: white;
+    border: none; font-family: 'Lato', sans-serif; font-size: 14px; font-weight: 700;
+    cursor: pointer; margin-bottom: 10px; display: none;
+  }
 </style>
 </head>
 <body>
@@ -387,6 +403,15 @@
           <div class="source-name">Amazon JP (via RanobeDB)</div>
           <div class="source-desc">Searches RanobeDB for the Amazon ASIN, then fetches the high-res Amazon cover.</div>
           <span class="source-tag tag-ja">JA / Light Novel</span>
+        </div>
+      </div>
+
+      <div class="source-option" id="src-imagesearch" onclick="setSource('imagesearch')">
+        <div class="source-radio"></div>
+        <div>
+          <div class="source-name">Image Search</div>
+          <div class="source-desc">Search by book title and pick a cover from image results. Works for any language.</div>
+          <span class="source-tag tag-all">ZH / EN / JA</span>
         </div>
       </div>
 
@@ -514,6 +539,18 @@
 
 <div class="toast" id="toast"></div>
 
+<!-- IMAGE PICKER MODAL -->
+<div class="modal-overlay" id="imgPickerModal">
+  <div class="modal-sheet">
+    <div class="modal-handle"></div>
+    <div class="modal-title" id="imgPickerTitle">Pick a Cover</div>
+    <div class="spinner" id="imgPickerSpinner" style="display:none">Searching images…</div>
+    <div class="img-grid" id="imgGrid"></div>
+    <button class="img-confirm-btn" id="imgConfirmBtn" onclick="confirmImagePick()">Use this cover</button>
+    <button class="manual-btn" onclick="closeModal('imgPickerModal')">Cancel</button>
+  </div>
+</div>
+
 <script>
 // ── DATA ──
 let books = JSON.parse(localStorage.getItem('myLibraryBooks_v2') || '[]');
@@ -558,7 +595,7 @@ function setSource(s) {
   showToast('Cover source updated');
 }
 function renderSettings() {
-  ['google','ranobedb','amazon'].forEach(s => {
+  ['google','ranobedb','amazon','imagesearch'].forEach(s => {
     document.getElementById('src-'+s).className = 'source-option' + (coverSource===s ? ' active' : '');
   });
 }
@@ -658,8 +695,8 @@ function renderCalendar() {
 function openAddModal() {
   document.getElementById('searchInput').value='';
   document.getElementById('searchResults').innerHTML='';
-  const hints = { google:'Google Books', ranobedb:'RanobeDB', amazon:'Amazon JP via RanobeDB' };
-  document.getElementById('searchHint').innerHTML = `Source: <span>${hints[coverSource]}</span> · Change in Settings ⚙️`;
+  const hints = { google:'Google Books', ranobedb:'RanobeDB', amazon:'Amazon JP via RanobeDB', imagesearch:'Image Search' };
+  document.getElementById('searchHint').innerHTML = `Source: <span>${hints[coverSource]||'Google Books'}</span> · Change in Settings ⚙️`;
   document.getElementById('addModal').classList.add('open');
 }
 
@@ -668,6 +705,13 @@ async function doSearch() {
   const q = document.getElementById('searchInput').value.trim();
   if (!q) return;
   const res = document.getElementById('searchResults');
+
+  if (coverSource === 'imagesearch') {
+    closeModal('addModal');
+    openImagePicker(q, null);
+    return;
+  }
+
   res.innerHTML = '<div class="spinner">Searching…</div>';
   try {
     let results = [];
@@ -693,6 +737,98 @@ async function doSearch() {
   } catch(e) {
     res.innerHTML='<div class="spinner">Search failed. Please try again.</div>';
   }
+}
+
+// ── MULTI-PROXY (for RanobeDB) ──
+const PROXIES = [
+  'https://corsproxy.io/?url=',
+  'https://api.allorigins.win/raw?url=',
+  'https://proxy.cors.sh/',
+];
+async function proxyFetch(url) {
+  for (const proxy of PROXIES) {
+    try {
+      const r = await fetch(proxy + encodeURIComponent(url), { signal: AbortSignal.timeout(8000) });
+      if (r.ok) return r;
+    } catch(e) { continue; }
+  }
+  throw new Error('All proxies failed');
+}
+
+// ── IMAGE SEARCH (DuckDuckGo via proxy) ──
+let imgPickerPrefill = null;
+let selectedImgUrl = null;
+
+async function openImagePicker(query, prefill) {
+  imgPickerPrefill = prefill;
+  selectedImgUrl = null;
+  document.getElementById('imgPickerTitle').textContent = `"${query}" — Pick a Cover`;
+  document.getElementById('imgGrid').innerHTML = '';
+  document.getElementById('imgConfirmBtn').style.display = 'none';
+  document.getElementById('imgPickerSpinner').style.display = 'block';
+  document.getElementById('imgPickerModal').classList.add('open');
+
+  try {
+    const images = await searchImages(query + ' 表紙 light novel cover');
+    document.getElementById('imgPickerSpinner').style.display = 'none';
+    if (!images.length) {
+      document.getElementById('imgGrid').innerHTML = '<div class="spinner">No images found. Try a different keyword.</div>';
+      return;
+    }
+    const grid = document.getElementById('imgGrid');
+    images.forEach(url => {
+      const cell = document.createElement('div');
+      cell.className = 'img-option';
+      cell.innerHTML = `<img src="${url}" alt="" onerror="this.parentElement.style.display='none'">`;
+      cell.onclick = () => {
+        document.querySelectorAll('.img-option').forEach(c => c.classList.remove('selected'));
+        cell.classList.add('selected');
+        selectedImgUrl = url;
+        document.getElementById('imgConfirmBtn').style.display = 'block';
+      };
+      grid.appendChild(cell);
+    });
+  } catch(e) {
+    document.getElementById('imgPickerSpinner').style.display = 'none';
+    document.getElementById('imgGrid').innerHTML = '<div class="spinner">Search failed. Please try again.</div>';
+  }
+}
+
+async function searchImages(query) {
+  // DuckDuckGo image search via proxy
+  const ddgUrl = `https://duckduckgo.com/?q=${encodeURIComponent(query)}&iax=images&ia=images`;
+  try {
+    const r = await proxyFetch(ddgUrl);
+    const text = await r.text();
+    // Extract vqd token
+    const vqdMatch = text.match(/vqd=([\d-]+)/);
+    if (!vqdMatch) throw new Error('no vqd');
+    const vqd = vqdMatch[1];
+    // Fetch image results
+    const imgUrl = `https://duckduckgo.com/i.js?q=${encodeURIComponent(query)}&vqd=${vqd}&p=1&f=,,,,size:Large`;
+    const ir = await proxyFetch(imgUrl);
+    const data = await ir.json();
+    return (data.results||[]).slice(0,18).map(r => r.image).filter(Boolean);
+  } catch(e) {
+    // Fallback: try Bing image scrape
+    return await searchImagesBingFallback(query);
+  }
+}
+
+async function searchImagesBingFallback(query) {
+  try {
+    const url = `https://www.bing.com/images/search?q=${encodeURIComponent(query)}&form=HDRSC2&first=1`;
+    const r = await proxyFetch(url);
+    const text = await r.text();
+    const matches = [...text.matchAll(/"murl":"([^"]+)"/g)];
+    return matches.slice(0,18).map(m => m[1]).filter(u => u.startsWith('http'));
+  } catch(e) { return []; }
+}
+
+function confirmImagePick() {
+  if (!selectedImgUrl) return;
+  closeModal('imgPickerModal');
+  openEditModal({ ...(imgPickerPrefill||{}), coverUrl: selectedImgUrl }, !imgPickerPrefill?.id);
 }
 
 // ── SOURCE A: GOOGLE BOOKS ──
@@ -726,7 +862,7 @@ const PROXY = 'https://corsproxy.io/?url=';
 async function searchRanobeDB(query) {
   try {
     const url = `https://ranobedb.org/api/v0/books?q=${encodeURIComponent(query)}&limit=15&sort=Relevance+desc`;
-    const r = await fetch(PROXY + encodeURIComponent(url));
+    const r = await proxyFetch(url);
     const data = await r.json();
     return (data.books||[]).map(book => ({
       title: book.title || book.title_orig || '',
@@ -740,7 +876,7 @@ async function searchRanobeDB(query) {
 async function searchAmazonViaRanobe(query) {
   try {
     const url = `https://ranobedb.org/api/v0/books?q=${encodeURIComponent(query)}&limit=15&sort=Relevance+desc`;
-    const r = await fetch(PROXY + encodeURIComponent(url));
+    const r = await proxyFetch(url);
     const data = await r.json();
     const books = data.books||[];
     if (!books.length) return [];
@@ -751,7 +887,7 @@ async function searchAmazonViaRanobe(query) {
       if (!title) return;
       try {
         const detailUrl = `https://ranobedb.org/api/v0/book/${book.id}`;
-        const dr = await fetch(PROXY + encodeURIComponent(detailUrl));
+        const dr = await proxyFetch(detailUrl);
         const detail = await dr.json();
         const release = (detail.releases||[]).find(rel => rel.amazon);
         let cover = null;
