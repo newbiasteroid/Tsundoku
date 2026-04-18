@@ -205,6 +205,22 @@
   .spinner { text-align: center; padding: 20px; color: var(--text3); font-size: 14px; }
   .toast { position: fixed; bottom: calc(80px + var(--safe-bottom) + 10px); left: 50%; transform: translateX(-50%) translateY(20px); background: var(--text); color: white; padding: 10px 20px; border-radius: 20px; font-size: 13px; font-weight: 700; opacity: 0; transition: all 0.3s; pointer-events: none; white-space: nowrap; z-index: 300; font-family: 'Lato',sans-serif; }
   .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+  /* API KEY INPUT */
+  .api-key-row { display: flex; gap: 8px; margin-bottom: 8px; }
+  .api-key-input { flex: 1; padding: 10px 12px; border-radius: 10px; border: 1.5px solid var(--border); background: var(--bg); font-family: 'Lato',monospace; font-size: 12px; color: var(--text); outline: none; }
+  .api-key-input:focus { border-color: var(--accent); }
+  .api-key-save { padding: 10px 16px; border-radius: 10px; background: var(--accent); color: white; border: none; font-family: 'Lato',sans-serif; font-size: 13px; font-weight: 700; cursor: pointer; }
+  .api-key-status { font-size: 12px; color: var(--text3); margin-top: 4px; }
+  .api-key-status.set { color: var(--reading); }
+
+  /* NOTES TEXTAREA */
+  .notes-textarea { width: 100%; padding: 11px 14px; border-radius: 10px; border: 1.5px solid var(--border); background: var(--bg); font-family: 'Lato','Hiragino Sans',sans-serif; font-size: 14px; color: var(--text); outline: none; resize: none; line-height: 1.6; min-height: 90px; }
+  .notes-textarea:focus { border-color: var(--accent); }
+
+  /* NOTES DISPLAY in detail */
+  .detail-notes { margin: 0 0 20px; padding: 14px; background: var(--bg); border-radius: 10px; font-size: 14px; color: var(--text2); line-height: 1.7; white-space: pre-wrap; word-break: break-word; }
+  .detail-notes-toggle { background: none; border: none; color: var(--accent); font-size: 12px; font-family: 'Lato',sans-serif; font-weight: 700; cursor: pointer; padding: 0; margin-top: 6px; display: block; }
 </style>
 </head>
 <body>
@@ -237,6 +253,21 @@
 
 <div id="settingsContent">
   <div class="settings-title">Settings</div>
+
+  <div class="settings-section">
+    <span class="settings-label">GOOGLE BOOKS API KEY</span>
+    <div class="api-key-row">
+      <input type="password" class="api-key-input" id="apiKeyInput" placeholder="Paste your API key here">
+      <button class="api-key-save" onclick="saveApiKey()">Save</button>
+    </div>
+    <div class="api-key-status" id="apiKeyStatus"></div>
+    <div class="settings-info" style="margin-top:10px">
+      Get a free key at console.cloud.google.com → APIs & Services → Credentials → Create API Key → restrict to Books API.<br>
+      Your key is stored locally on your device only.
+    </div>
+  </div>
+
+  <div class="settings-divider"></div>
   <div class="settings-section">
     <span class="settings-label">DATA</span>
     <button class="export-btn" onclick="exportCSV()">⬇ Export Library as CSV</button>
@@ -330,6 +361,10 @@
         <div class="date-field"><label>FINISHED</label><input type="date" id="endDateInput"></div>
       </div>
     </div>
+    <div class="form-section">
+      <label class="form-label">NOTES</label>
+      <textarea class="notes-textarea" id="notesInput" placeholder="感想、メモ、thoughts…" rows="4"></textarea>
+    </div>
     <button class="save-btn" onclick="saveBook()">Save</button>
     <button class="delete-btn" id="deleteBtn" style="display:none" onclick="deleteBook()">Delete this book</button>
   </div>
@@ -349,6 +384,9 @@
       <div class="detail-date-box"><div class="dlabel">STARTED</div><div class="dval" id="detailStart">—</div></div>
       <div class="detail-date-box"><div class="dlabel">FINISHED</div><div class="dval" id="detailEnd">—</div></div>
     </div>
+    <div id="detailNotesWrap" style="display:none">
+      <div class="detail-notes" id="detailNotes"></div>
+    </div>
     <button class="edit-btn" onclick="editCurrentBook()">✏️ Edit</button>
   </div>
 </div>
@@ -367,6 +405,29 @@ calYear = today.getFullYear(); calMonth = today.getMonth();
 function saveData() { localStorage.setItem('myLibraryBooks_v2', JSON.stringify(books)); }
 function genId() { return Date.now().toString(36) + Math.random().toString(36).slice(2); }
 
+// ── API KEY ──
+function getApiKey() { return localStorage.getItem('gbooksApiKey') || ''; }
+function saveApiKey() {
+  const val = document.getElementById('apiKeyInput').value.trim();
+  if (!val) { showToast('Please paste your API key'); return; }
+  localStorage.setItem('gbooksApiKey', val);
+  document.getElementById('apiKeyInput').value = '';
+  updateApiKeyStatus();
+  showToast('API key saved ✓');
+}
+function updateApiKeyStatus() {
+  const el = document.getElementById('apiKeyStatus');
+  if (!el) return;
+  const key = getApiKey();
+  if (key) {
+    el.textContent = '✓ Key set: ' + key.slice(0,8) + '…';
+    el.className = 'api-key-status set';
+  } else {
+    el.textContent = 'No key set — search will not work';
+    el.className = 'api-key-status';
+  }
+}
+
 // ── VIEWS ──
 function switchView(v) {
   currentView = v;
@@ -378,6 +439,7 @@ function switchView(v) {
   document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
   document.getElementById(v==='library'?'navLibrary':v==='calendar'?'navCalendar':'navSettings').classList.add('active');
   if (v==='calendar') renderCalendar();
+  else if (v==='settings') updateApiKeyStatus();
   else renderBooks();
 }
 
@@ -588,14 +650,15 @@ function applyAsinCover() {
 }
 
 // ── SEARCH (Google Books only) ──
-const GBOOKS_KEY = 'AIzaSyDLk80bMnLdeMuwrZLhwW4f4N1PxEJxFhg';
 async function doSearch() {
   const q = document.getElementById('searchInput').value.trim();
   if (!q) return;
+  const key = getApiKey();
+  if (!key) { document.getElementById('searchResults').innerHTML='<div class="spinner">No API key set — go to Settings ⚙️ to add one.</div>'; return; }
   const res = document.getElementById('searchResults');
   res.innerHTML = '<div class="spinner">Searching…</div>';
   try {
-    const results = await searchGoogle(q);
+    const results = await searchGoogle(q, key);
     if (!results.length) { res.innerHTML='<div class="spinner">No results. Try another keyword.</div>'; return; }
     res.innerHTML='';
     results.forEach(item => {
@@ -609,11 +672,11 @@ async function doSearch() {
   } catch(e) { res.innerHTML='<div class="spinner">Search failed. Please try again.</div>'; }
 }
 
-async function searchGoogle(query) {
+async function searchGoogle(query, key) {
   const results=[], seen=new Set();
   async function fetchG(params) {
     try {
-      const r=await fetch(`https://www.googleapis.com/books/v1/volumes?${params}&maxResults=10&printType=books&key=${GBOOKS_KEY}`);
+      const r=await fetch(`https://www.googleapis.com/books/v1/volumes?${params}&maxResults=10&printType=books&key=${key}`);
       const data=await r.json();
       (data.items||[]).forEach(item=>{
         const vi=item.volumeInfo||{};
@@ -636,10 +699,10 @@ async function searchGoogle(query) {
 // ── CSV EXPORT ──
 function exportCSV() {
   if (!books.length) { showToast('No books to export'); return; }
-  const headers = ['Title','Author','Status','Rating','Tags','Started','Finished','Cover URL'];
+  const headers = ['Title','Author','Status','Rating','Tags','Started','Finished','Cover URL','Notes'];
   const rows = books.map(b => [
     b.title, b.author||'', b.status, b.rating||'',
-    (b.tags||[]).join(';'), b.startDate||'', b.endDate||'', b.coverUrl||''
+    (b.tags||[]).join(';'), b.startDate||'', b.endDate||'', b.coverUrl||'', b.notes||''
   ].map(v => `"${String(v).replace(/"/g,'""')}"`).join(','));
   const csv = [headers.join(','), ...rows].join('\n');
   const blob = new Blob(['\ufeff'+csv], {type:'text/csv;charset=utf-8'});
@@ -662,6 +725,7 @@ function openEditModal(prefill, isNew) {
   document.getElementById('coverUrlInput').value = prefill?.coverUrl||'';
   document.getElementById('startDateInput').value = prefill?.startDate||'';
   document.getElementById('endDateInput').value = prefill?.endDate||'';
+  document.getElementById('notesInput').value = prefill?.notes||'';
   document.getElementById('tagInput').value = '';
   document.getElementById('asinEditInput').value = '';
   document.getElementById('deleteBtn').style.display = editingId ? '' : 'none';
@@ -709,6 +773,7 @@ function saveBook(){
     status: editStatus, rating: editRating, tags:[...editTags],
     startDate: document.getElementById('startDateInput').value||'',
     endDate: document.getElementById('endDateInput').value||'',
+    notes: document.getElementById('notesInput').value.trim(),
   };
   if (editingId){ const idx=books.findIndex(b=>b.id===editingId); if(idx!==-1) books[idx]=book; }
   else books.unshift(book);
@@ -750,7 +815,44 @@ function openDetail(id){
   const se=document.getElementById('detailStatus'); se.textContent=label; se.className='detail-status '+cls;
   document.getElementById('detailStart').textContent=book.startDate?formatDate(book.startDate):'—';
   document.getElementById('detailEnd').textContent=book.endDate?formatDate(book.endDate):'—';
+
+  // Notes with truncation
+  const notesWrap = document.getElementById('detailNotesWrap');
+  const notesEl = document.getElementById('detailNotes');
+  const notes = book.notes || '';
+  if (notes) {
+    notesWrap.style.display = '';
+    const LIMIT = 100;
+    if (notes.length <= LIMIT) {
+      notesEl.innerHTML = escapeHtml(notes);
+    } else {
+      notesEl.innerHTML = escapeHtml(notes.slice(0, LIMIT)) + '…<button class="detail-notes-toggle" onclick="expandNotes()">Show more</button>';
+      notesEl.dataset.full = notes;
+      notesEl.dataset.collapsed = '1';
+    }
+  } else {
+    notesWrap.style.display = 'none';
+    notesEl.textContent = '';
+  }
+
   document.getElementById('detailModal').classList.add('open');
+}
+
+function expandNotes() {
+  const el = document.getElementById('detailNotes');
+  if (el.dataset.collapsed === '1') {
+    el.innerHTML = escapeHtml(el.dataset.full) + '<button class="detail-notes-toggle" onclick="expandNotes()">Show less</button>';
+    el.dataset.collapsed = '0';
+  } else {
+    const LIMIT = 100;
+    const full = el.dataset.full;
+    el.innerHTML = escapeHtml(full.slice(0, LIMIT)) + '…<button class="detail-notes-toggle" onclick="expandNotes()">Show more</button>';
+    el.dataset.collapsed = '1';
+  }
+}
+
+function escapeHtml(s) {
+  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\n/g,'<br>');
 }
 function editCurrentBook(){ const b=books.find(b=>b.id===currentDetailId); if(b) openEditModal(b,false); }
 function formatDate(d){ if(!d)return'—'; const[y,m,day]=d.split('-'); return`${m}/${day}/${y.slice(2)}`; }
@@ -762,6 +864,7 @@ document.querySelectorAll('.modal-overlay').forEach(o=>{
 });
 
 renderBooks();
+updateApiKeyStatus();
 </script>
 </body>
 </html>
